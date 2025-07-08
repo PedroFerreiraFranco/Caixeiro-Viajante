@@ -8,32 +8,20 @@ import java.util.Random;
 
 public class AGtsp {
 
-    ArrayList<Cidade> cidades = new ArrayList<>();
+    public ArrayList<Cidade> cidades = new ArrayList<>();
+    public ArrayList<ArrayList<Cidade>> populacao = new ArrayList<>();
+    public int numeroGeracoes;
+    
     private int tamPopulacao;
-    private int tamCromossomo = 0;
-    private int probMutacao;
+    private double probMutacao;
     private int qtdeCruzamentos;
-    private int numeroGeracoes;
-    private ArrayList<ArrayList<Cidade>> populacao = new ArrayList<>();
-    private ArrayList<Integer> roletaVirtual = new ArrayList<>();
+    private ArrayList<Double> fitnessPopulacao = new ArrayList<>();
 
-    public AGtsp(int tamPopulacao, int probMutacao, int qtdeCruzamentos, int numeroGeracoes) {
+    public AGtsp(int tamPopulacao, double probMutacao, int qtdeCruzamentos, int numeroGeracoes) {
         this.tamPopulacao = tamPopulacao;
         this.probMutacao = probMutacao;
         this.qtdeCruzamentos = qtdeCruzamentos;
         this.numeroGeracoes = numeroGeracoes;
-    }
-
-    public void executar() {
-        criarPopulacao();
-
-        for (int i = 0; i < this.numeroGeracoes; i++) {
-            //
-        }
-
-        int melhor = obterMelhor(); 
-        System.out.println("\nMelhor solução encontrada:");
-        mostrarRota(populacao.get(melhor));
     }
 
     public void carregarCidades(String arquivo) {
@@ -45,68 +33,98 @@ public class AGtsp {
                 double x = Double.parseDouble(dados[1]);
                 double y = Double.parseDouble(dados[2]);
                 Cidade cidade = new Cidade(nome, x, y);
-                cidades.add(cidade); // você deve criar a lista cidades: ArrayList<Cidade>
-                System.out.println("Carregada: " + cidade);
+                cidades.add(cidade);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    public void criarPopulacao() {
+        for (int i = 0; i < this.tamPopulacao; i++) {
+            this.populacao.add(criarCromossomo());
+        }
+    }
+
+    public void avaliarPopulacao() {
+        this.fitnessPopulacao.clear();
+        for (ArrayList<Cidade> individuo : this.populacao) {
+            this.fitnessPopulacao.add(fitness(individuo));
+        }
+    }
+
+    public double fitness(ArrayList<Cidade> cromossomo) {
+        double distanciaTotal = 0;
+        for (int i = 0; i < cromossomo.size() - 1; i++) {
+            distanciaTotal += cromossomo.get(i).distanciaPara(cromossomo.get(i + 1));
+        }
+        distanciaTotal += cromossomo.get(cromossomo.size() - 1).distanciaPara(cromossomo.get(0));
+        return 1.0 / distanciaTotal;
+    }
+    
+    public int obterMelhor() {
+        int melhor = 0;
+        for (int i = 1; i < this.populacao.size(); i++) {
+            if (this.fitnessPopulacao.get(i) > this.fitnessPopulacao.get(melhor)) {
+                melhor = i;
+            }
+        }
+        return melhor;
+    }
+
+    public void operadoresGeneticos() {
+        ArrayList<ArrayList<Cidade>> novaPopulacao = new ArrayList<>();
+        novaPopulacao.add(this.populacao.get(obterMelhor())); 
+
+        while (novaPopulacao.size() < this.tamPopulacao) {
+            int idxPai1 = roleta();
+            int idxPai2 = roleta();
+            while (idxPai1 == idxPai2) {
+                idxPai2 = roleta();
+            }
+
+            ArrayList<Cidade> pai1 = this.populacao.get(idxPai1);
+            ArrayList<Cidade> pai2 = this.populacao.get(idxPai2);
+
+            ArrayList<ArrayList<Cidade>> filhos = cruzamentoPMX(pai1, pai2);
+            mutacao(filhos.get(0));
+            mutacao(filhos.get(1));
+
+            novaPopulacao.add(filhos.get(0));
+            if (novaPopulacao.size() < this.tamPopulacao) {
+                novaPopulacao.add(filhos.get(1));
+            }
+        }
+        this.populacao = novaPopulacao;
+    }
+    
     private ArrayList<Cidade> criarCromossomo() {
-        ArrayList<Cidade> cromossomo = new ArrayList<>(this.cidades); 
-        Collections.shuffle(cromossomo); // 
+        ArrayList<Cidade> cromossomo = new ArrayList<>(this.cidades);
+        Collections.shuffle(cromossomo);
         return cromossomo;
     }
 
-    private void criarPopulacao() {
-        //
-    }
-
-    private void mostraPopulacao() {
-        for (int i = 0; i < this.populacao.size(); i++) {
-            // mostrar indivíduo, fitness e distância total
-        }
-        System.out.println("-------------------------------");
-    }
-
-    private double calcularDistancia(Cidade a, Cidade b) {
-        double dx = a.getX() - b.getX();
-        double dy = a.getY() - b.getY();
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    private double fitness(ArrayList<Cidade> cromossomo) {
-        double distanciaTotal = 0;
-
-        // Somar as distâncias entre cidades consecutivas na rota e adicionar na distancia total
-      
-        // calcular a distancia da ultima cidade para a primeira e adicionar na distancia total
- 
-
-        // Quanto menor a distância, melhor, assim retornar o inverso.
-        return (1.0 / distanciaTotal);
-    }
-
-    //------------------------------
-    private void gerarRoleta() {
-        this.roletaVirtual.clear();
-
-        //
-    }
-
-
     private int roleta() {
-        
-        return 0;
-    }
-//------------------------------
+        double totalFitness = 0;
+        for (double f : this.fitnessPopulacao) {
+            totalFitness += f;
+        }
 
-    public ArrayList<ArrayList<Cidade>> cruzamentoPMX(ArrayList<Cidade> pai1, ArrayList<Cidade> pai2) {
+        double valorSorteado = new Random().nextDouble() * totalFitness;
+        double somaParcial = 0;
+        for (int i = 0; i < this.populacao.size(); i++) {
+            somaParcial += this.fitnessPopulacao.get(i);
+            if (somaParcial >= valorSorteado) {
+                return i;
+            }
+        }
+        return this.populacao.size() - 1;
+    }
+
+    private ArrayList<ArrayList<Cidade>> cruzamentoPMX(ArrayList<Cidade> pai1, ArrayList<Cidade> pai2) {
         int tamanho = pai1.size();
         Random rand = new Random();
 
-        // Gerar dois pontos de corte distintos
         int corte1 = rand.nextInt(tamanho);
         int corte2 = rand.nextInt(tamanho);
         if (corte1 > corte2) {
@@ -115,72 +133,48 @@ public class AGtsp {
             corte2 = temp;
         }
 
-        // Inicializar filhos com valores nulos
         ArrayList<Cidade> filho1 = new ArrayList<>(Collections.nCopies(tamanho, null));
         ArrayList<Cidade> filho2 = new ArrayList<>(Collections.nCopies(tamanho, null));
 
-        // Copiar segmento entre os cortes
         for (int i = corte1; i <= corte2; i++) {
             filho1.set(i, pai2.get(i));
             filho2.set(i, pai1.get(i));
         }
 
-        // Preencher o restante dos genes respeitando a permutação
-        preencherPMX(filho1, pai1, pai2);
-        preencherPMX(filho2, pai2, pai1);
+        preencherPMX(filho1, pai1, pai2, corte1, corte2);
+        preencherPMX(filho2, pai2, pai1, corte1, corte2);
 
-        // Retornar os filhos
         ArrayList<ArrayList<Cidade>> filhos = new ArrayList<>();
         filhos.add(filho1);
         filhos.add(filho2);
         return filhos;
     }
+    
+    private void preencherPMX(ArrayList<Cidade> filho, ArrayList<Cidade> paiOrigem, ArrayList<Cidade> paiSegmento, int corte1, int corte2) {
+        for (int i = 0; i < paiOrigem.size(); i++) {
+            if (i >= corte1 && i <= corte2) continue;
 
-    private void preencherPMX(ArrayList<Cidade> filho, ArrayList<Cidade> paiDeOrigem, ArrayList<Cidade> paiDoSegmento) {
-        for (int i = 0; i < paiDeOrigem.size(); i++) {
-            if (filho.get(i) == null) {
-                Cidade geneAInserir = paiDeOrigem.get(i);
-                while (filho.contains(geneAInserir)) {
-                    int indexNoPaiSegmento = paiDoSegmento.indexOf(geneAInserir);
-                    geneAInserir = paiDeOrigem.get(indexNoPaiSegmento);
+            Cidade gene = paiOrigem.get(i);
+            while (filho.contains(gene)) {
+                int indexNoFilho = -1;
+                for(int j=corte1; j<=corte2; j++){
+                    if(filho.get(j).equals(gene)){
+                        indexNoFilho = j;
+                        break;
+                    }
                 }
-                filho.set(i, geneAInserir);
+                gene = paiOrigem.get(indexNoFilho);
             }
+            filho.set(i, gene);
         }
     }
 
     private void mutacao(ArrayList<Cidade> cromossomo) {
-        //
+        Random rand = new Random();
+        if (rand.nextDouble() < this.probMutacao) {
+            int pos1 = rand.nextInt(cromossomo.size());
+            int pos2 = rand.nextInt(cromossomo.size());
+            Collections.swap(cromossomo, pos1, pos2);
+        }
     }
-
-    private int obterMelhor() {
-        int melhor = 0;
-        //
-        return melhor;
-    }
-
-    private int obterPior() {
-        int pior = 0;
-        //
-        return pior;
-    }
-
-    private void novaPopulacao() {
-        //
-    }
-
-    private void operadoresGeneticos() {
-        //
-    }
-
-    private void mostrarRota(ArrayList<Cidade> rota) {
-        //
-    }
-
-    public static void main(String[] args) {
-        AGtsp ag = new AGtsp(50, 5, 10, 100); // população, mutação, cruzamentos, gerações
-        ag.carregarCidades("cidades.csv"); // caminho do arquivo CSV
-        ag.executar();
-    }
-
 }

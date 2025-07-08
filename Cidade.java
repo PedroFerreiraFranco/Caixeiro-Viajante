@@ -26,12 +26,12 @@ public class Cidade {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Cidade cidade = (Cidade) obj;
-        return nome.equals(cidade.nome); // ou comparar por ID, se houver
+        return nome.equals(cidade.nome); 
     }
 
     @Override
     public int hashCode() {
-        return nome.hashCode(); // ou hash do ID
+        return nome.hashCode(); 
     }
 
 
