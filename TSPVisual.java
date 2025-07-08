@@ -1,7 +1,6 @@
+// Arquivo: TSPVisual.java (VERSÃO FINAL COM LISTA DE ROTA)
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +11,7 @@ public class TSPVisual {
     private MapaPanel mapaPanel;
     private JButton startButton;
     private JLabel infoLabel;
+    private JTextArea rotaTextArea; // NOVO: Área para mostrar a rota final
 
     // Instância do Algoritmo Genético
     private AGtsp ag;
@@ -23,11 +23,19 @@ public class TSPVisual {
 
         // 2. Cria os componentes da interface
         frame = new JFrame("Visualizador do Problema do Caixeiro Viajante");
-        mapaPanel = new MapaPanel(ag.cidades); // Passa as cidades para o painel de desenho
+        mapaPanel = new MapaPanel(ag.cidades);
         startButton = new JButton("Iniciar Algoritmo");
         infoLabel = new JLabel("Clique em 'Iniciar' para começar. | Gerações: 500");
         infoLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
+
+        // NOVO: Configura a área de texto para a rota
+        rotaTextArea = new JTextArea("A melhor rota aparecerá aqui...");
+        rotaTextArea.setEditable(false);
+        rotaTextArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        rotaTextArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JScrollPane scrollPane = new JScrollPane(rotaTextArea); // Adiciona uma barra de rolagem
+        scrollPane.setPreferredSize(new Dimension(200, 0)); // Define a largura preferida
+
         // 3. Monta a janela
         JPanel controlePanel = new JPanel(new BorderLayout());
         controlePanel.add(startButton, BorderLayout.WEST);
@@ -37,34 +45,31 @@ public class TSPVisual {
         frame.setLayout(new BorderLayout());
         frame.add(mapaPanel, BorderLayout.CENTER);
         frame.add(controlePanel, BorderLayout.SOUTH);
+        frame.add(scrollPane, BorderLayout.EAST); // NOVO: Adiciona o painel de texto à direita
 
         // 4. Configura a ação do botão
         startButton.addActionListener(e -> executarAlgoritmo());
 
         // 5. Finaliza e exibe a janela
-        frame.setSize(800, 800);
+        frame.setSize(1000, 800); // Aumentei a largura para caber a nova área
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
 
     private void executarAlgoritmo() {
-        startButton.setEnabled(false); // Desabilita o botão durante a execução
+        startButton.setEnabled(false);
         infoLabel.setText("Executando...");
+        rotaTextArea.setText("Calculando a melhor rota..."); // NOVO: Limpa a área de texto
 
-        // Cria um SwingWorker para rodar o AG em segundo plano
         TspWorker worker = new TspWorker();
         worker.execute();
     }
 
-    /**
-     * Classe interna que executa o algoritmo em uma thread
-     * separada para não congelar a interface gráfica.
-    */
-    private class TspWorker extends SwingWorker<Void, ArrayList<Cidade>> {
+    private class TspWorker extends SwingWorker<ArrayList<Cidade>, ArrayList<Cidade>> {
 
         @Override
-        protected Void doInBackground() throws Exception {
+        protected ArrayList<Cidade> doInBackground() throws Exception {
             ag.criarPopulacao();
             ag.avaliarPopulacao();
 
@@ -72,42 +77,50 @@ public class TSPVisual {
                 ag.operadoresGeneticos();
                 ag.avaliarPopulacao();
 
-                // Pega a melhor rota da geração atual
                 ArrayList<Cidade> melhorDaGeracao = ag.populacao.get(ag.obterMelhor());
-
-                // Publica o resultado intermediário para a interface
-                publish(melhorDaGeracao);
-                
-                // Pausa para a animação ser visível
+                publish(melhorDaGeracao); // Publica a rota para a animação
                 Thread.sleep(50);
             }
-            return null;
+            // Retorna a melhor rota final
+            return ag.populacao.get(ag.obterMelhor());
         }
 
         @Override
         protected void process(List<ArrayList<Cidade>> chunks) {
-            // Este método é chamado na thread da interface gráfica
-            // Pega a última rota publicada
             ArrayList<Cidade> melhorRota = chunks.get(chunks.size() - 1);
-            
-            // Atualiza o painel de desenho
             mapaPanel.setRota(melhorRota);
 
-            // Atualiza o texto de informações
             double distancia = 1.0 / ag.fitness(melhorRota);
             infoLabel.setText(String.format("Melhor Distância: %.2f", distancia));
         }
 
         @Override
         protected void done() {
-            // Este método é chamado quando o 'doInBackground' termina
+            try {
+                // Pega a rota final retornada pelo 'doInBackground'
+                ArrayList<Cidade> melhorRotaFinal = get();
+
+                // Constrói o texto da rota final
+                StringBuilder rotaStr = new StringBuilder("Rota Final:\n\n");
+                for (Cidade c : melhorRotaFinal) {
+                    rotaStr.append(" -> ").append(c.getNome()).append("\n");
+                }
+                rotaStr.append(" -> ").append(melhorRotaFinal.get(0).getNome()); // Volta ao início
+
+                // Atualiza a área de texto com a lista
+                rotaTextArea.setText(rotaStr.toString());
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                rotaTextArea.setText("Ocorreu um erro ao finalizar o algoritmo.");
+            }
+
             startButton.setEnabled(true);
             infoLabel.setText(infoLabel.getText() + " | Concluído!");
         }
     }
 
     public static void main(String[] args) {
-        // Garante que a interface seja criada na thread de eventos do Swing
         SwingUtilities.invokeLater(() -> new TSPVisual());
     }
 }
